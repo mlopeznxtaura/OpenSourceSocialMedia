@@ -1,0 +1,34 @@
+{
+  "name": "Art Creative",
+  "version": "1.0.0",
+  "category": "art",
+  "kernelId": "art",
+  "dockerImage": "colossus/mk-art:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "art-widget",
+    "mobileComponent": "ArtScreen",
+    "defaultRoute": "/art"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "nft_marketplace",
+      "compute_credits"
+    ]
+  }
+}

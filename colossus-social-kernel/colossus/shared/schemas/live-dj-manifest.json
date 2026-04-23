@@ -1,0 +1,33 @@
+{
+  "name": "Live DJ Platform",
+  "version": "1.0.0",
+  "category": "live",
+  "kernelId": "live-dj",
+  "dockerImage": "colossus/mk-live-dj:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "live-dj-widget",
+    "mobileComponent": "LiveDjScreen",
+    "defaultRoute": "/live-dj"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "ticketed_events",
+      "tip_jar"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "Finance Investing",
+  "version": "1.0.0",
+  "category": "finance",
+  "kernelId": "finance",
+  "dockerImage": "colossus/mk-finance:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "finance-widget",
+    "mobileComponent": "FinanceScreen",
+    "defaultRoute": "/finance"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "premium_indicators",
+      "tax_report"
+    ]
+  }
+}

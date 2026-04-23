@@ -1,0 +1,33 @@
+{
+  "name": "News Journalism",
+  "version": "1.0.0",
+  "category": "news",
+  "kernelId": "news",
+  "dockerImage": "colossus/mk-news:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "news-widget",
+    "mobileComponent": "NewsScreen",
+    "defaultRoute": "/news"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "micropayments",
+      "reader_donations"
+    ]
+  }
+}

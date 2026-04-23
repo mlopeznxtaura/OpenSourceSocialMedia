@@ -1,0 +1,34 @@
+{
+  "name": "Events Calendar",
+  "version": "1.0.0",
+  "category": "events",
+  "kernelId": "events-calendar",
+  "dockerImage": "colossus/mk-events-calendar:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "events-calendar-widget",
+    "mobileComponent": "EventsCalendarScreen",
+    "defaultRoute": "/events-calendar"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "ticket_fee",
+      "promoted_events"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Real-Time Messaging",
+  "version": "1.0.0",
+  "category": "messaging",
+  "kernelId": "messaging",
+  "dockerImage": "colossus/mk-messaging:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "messaging-widget",
+    "mobileComponent": "MessagingScreen",
+    "defaultRoute": "/messaging"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "premium_stickers"
+    ]
+  }
+}

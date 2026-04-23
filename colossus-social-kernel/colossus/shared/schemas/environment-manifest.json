@@ -1,0 +1,32 @@
+{
+  "name": "Environmental Projects",
+  "version": "1.0.0",
+  "category": "environment",
+  "kernelId": "environment",
+  "dockerImage": "colossus/mk-environment:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "environment-widget",
+    "mobileComponent": "EnvironmentScreen",
+    "defaultRoute": "/environment"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "donations"
+    ]
+  }
+}

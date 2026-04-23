@@ -1,0 +1,34 @@
+{
+  "name": "Food Recipes",
+  "version": "1.0.0",
+  "category": "food",
+  "kernelId": "food",
+  "dockerImage": "colossus/mk-food:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "food-widget",
+    "mobileComponent": "FoodScreen",
+    "defaultRoute": "/food"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "sponsored_ingredients",
+      "premium_meal_plans"
+    ]
+  }
+}

@@ -1,0 +1,476 @@
+[
+  {
+    "id": "MK-001",
+    "component": "mini-kernel / photo-sharing",
+    "task": "Implement photo-sharing mini-kernel: src/index.ts extending MiniKernelBase. Tables: photo_sharing_items (id, author_id, storage_url, caption, tags[], likes, created_at). GraphQL mutations: uploadPhoto(storageUrl, caption, tags), deletePhoto(id), likePhoto(id). processFeed() queries by author_id IN followees ORDER BY created_at DESC. processEvent() handles user.deleted cascade.",
+    "verification": [
+      "POST /feed with valid userIds returns array of photo objects with id, storage_url, caption, likes",
+      "POST /events with {type:'user.deleted', actorId:'<uuid>'} removes all author's rows from photo_sharing_items",
+      "GraphQL mutation uploadPhoto returns created photo with id and createdAt",
+      "GET /health returns {status:'ok', kernelId:'photo-sharing'}",
+      "GET /capabilities returns eventSubscriptions including 'user.follow' and 'content.like'",
+      "Mini-kernel registers with Discovery service within 5s of startup (check GET localhost:4002/kernels)"
+    ]
+  },
+  {
+    "id": "MK-002",
+    "component": "mini-kernel / messaging",
+    "task": "Implement messaging mini-kernel. Tables: messages (id, group_id, author_id, ciphertext BYTEA, created_at), message_groups (id, name, member_ids UUID[]). All message content stored as AES-256-GCM ciphertext \u2014 kernel never sees plaintext. GraphQL: sendMessage(groupId, ciphertext), createGroup(name, memberIds), getMessages(groupId, limit, cursor). processFeed() returns empty array (messaging has no public feed). WebSocket /ws/:groupId endpoint for real-time push via NATS subscription.",
+    "verification": [
+      "GraphQL sendMessage returns message id and createdAt; ciphertext stored verbatim in DB (no decryption attempted)",
+      "GET /health returns ok",
+      "WebSocket connection to /ws/<groupId> receives new messages within 200ms of sendMessage call",
+      "processFeed() always returns {items:[]} regardless of userIds input",
+      "createGroup with 3 memberIds stores all 3 in message_groups.member_ids array",
+      "NATS publishes event 'messaging.message.sent' on every sendMessage with {groupId, authorId}"
+    ]
+  },
+  {
+    "id": "MK-003",
+    "component": "mini-kernel / video",
+    "task": "Implement video mini-kernel. Tables: video_items (id, author_id, storage_url, title, description, tags[], hls_url, duration_seconds, likes, views, created_at), channels (id, owner_id, name, subscriber_count). GraphQL: uploadVideo(title, description, storageUrl, hlsUrl, duration), createChannel(name), subscribeChannel(channelId). processFeed() returns video_items for followed authors sorted by created_at DESC. HLS URL must be validated as ending in .m3u8.",
+    "verification": [
+      "uploadVideo with non-.m3u8 hlsUrl returns validation error",
+      "processFeed returns items with hls_url, title, duration_seconds fields present",
+      "views counter increments on each processFeed item access (or deduplicated by user per 24h)",
+      "GET /capabilities returns eventSubscriptions ['user.follow','content.like']",
+      "createChannel returns channel with owner_id equal to calling user's x-colossus-user-id header"
+    ]
+  },
+  {
+    "id": "MK-004",
+    "component": "mini-kernel / music",
+    "task": "Implement music mini-kernel. Tables: tracks (id, author_id, title, storage_url, album_id, duration_seconds, stream_count, created_at), albums (id, artist_id, title, cover_url), stream_events (id, track_id, listener_id, streamed_at). GraphQL: uploadTrack(title, storageUrl, albumId), createAlbum(title, coverUrl), recordStream(trackId), getArtistDashboard(artistId) returns {totalStreams, estimatedRoyalties}. Royalty calc: stream_count * 0.004 USD.",
+    "verification": [
+      "recordStream inserts row into stream_events and increments tracks.stream_count",
+      "getArtistDashboard returns estimatedRoyalties = totalStreams * 0.004",
+      "OAuth scope linkedin:r_fullprofile NOT required \u2014 only spotify scopes in manifest",
+      "processFeed returns tracks ordered by stream_count DESC as 'popular' and created_at DESC as 'new'; default is new",
+      "GET /capabilities shows oauthScopesNeeded includes 'spotify:user-read-private'"
+    ]
+  },
+  {
+    "id": "MK-005",
+    "component": "mini-kernel / live-dj",
+    "task": "Implement live-dj mini-kernel. Tables: live_sessions (id, dj_id, title, started_at, ended_at, recording_url, tip_total_cents), session_tips (id, session_id, tipper_id, amount_cents, created_at). GraphQL: startSession(title), endSession(sessionId), sendTip(sessionId, amountCents), getUpcomingSessions(limit). NATS publishes 'live.session.started' and 'live.session.ended'. processFeed() returns active and recent sessions (ended_at IS NULL OR ended_at > NOW()-7days).",
+    "verification": [
+      "startSession sets started_at=NOW() and ended_at=NULL; endSession sets ended_at=NOW()",
+      "sendTip inserts into session_tips and increments live_sessions.tip_total_cents",
+      "NATS event 'live.session.started' published within 1s of startSession mutation",
+      "processFeed returns only sessions where dj_id IN followee list",
+      "getUpcomingSessions returns sessions with started_at > NOW() ordered ASC"
+    ]
+  },
+  {
+    "id": "MK-006",
+    "component": "mini-kernel / cad-collaboration",
+    "task": "Implement cad-collaboration mini-kernel. Tables: cad_files (id, owner_id, title, file_format TEXT CHECK IN ('STEP','STL','GLTF','OBJ'), storage_url, version INT DEFAULT 1, created_at), cad_revisions (id, file_id, version, storage_url, author_id, message, created_at), cad_annotations (id, file_id, x FLOAT, y FLOAT, z FLOAT, body TEXT, author_id, created_at). GraphQL: uploadFile(title, format, storageUrl), createRevision(fileId, storageUrl, message), addAnnotation(fileId, x, y, z, body), getFileHistory(fileId). processFeed returns cad_files owned by followed users.",
+    "verification": [
+      "uploadFile with format='PDF' returns error 'unsupported format'",
+      "createRevision auto-increments version field by querying MAX(version) for that file_id",
+      "getFileHistory returns all revisions sorted by version ASC",
+      "addAnnotation stores float x/y/z coordinates (not strings)",
+      "processFeed returns files with current version number and owner_id"
+    ]
+  },
+  {
+    "id": "MK-007",
+    "component": "mini-kernel / robotics",
+    "task": "Implement robotics mini-kernel. Tables: robot_models (id, owner_id, name, urdf_url, storage_url, created_at), simulation_logs (id, model_id, author_id, log_data JSONB, run_duration_seconds, created_at), sensor_data (id, model_id, sensor_type, value JSONB, recorded_at). GraphQL: uploadModel(name, urdfUrl, storageUrl), logSimulation(modelId, logData, durationSeconds), streamSensorData(modelId) subscription. processFeed returns recent simulation_logs for followed users' models.",
+    "verification": [
+      "uploadModel validates urdfUrl ends in .urdf or .xacro",
+      "logSimulation stores logData as JSONB (must be valid JSON object)",
+      "GraphQL subscription streamSensorData publishes new sensor_data rows within 500ms of INSERT",
+      "processFeed returns simulation_logs joined to robot_models where robot_models.owner_id IN followees",
+      "GET /capabilities returns category='robotics'"
+    ]
+  },
+  {
+    "id": "MK-008",
+    "component": "mini-kernel / gaming",
+    "task": "Implement gaming mini-kernel. Tables: games (id, title, genre, platform), matches (id, game_id, player_ids UUID[], winner_id, played_at, stats JSONB), tournament_teams (id, name, member_ids UUID[], game_id), clips (id, author_id, game_id, storage_url, title, likes, created_at). GraphQL: recordMatch(gameId, playerIds, winnerId, stats), createTournamentTeam(name, gameId, memberIds), uploadClip(gameId, storageUrl, title), likeClip(clipId). processFeed returns clips from followed users sorted by created_at DESC.",
+    "verification": [
+      "recordMatch stores player_ids as UUID array and validates winnerId is within playerIds",
+      "createTournamentTeam validates all memberIds exist in users table (FK check or manual lookup)",
+      "likeClip is idempotent per user (one like per user per clip)",
+      "processFeed returns clip objects with game_id, storage_url, likes, title",
+      "NATS publishes 'gaming.match.recorded' on each recordMatch"
+    ]
+  },
+  {
+    "id": "MK-009",
+    "component": "mini-kernel / education",
+    "task": "Implement education mini-kernel. Tables: courses (id, instructor_id, title, description, price_cents, created_at), lessons (id, course_id, title, content_url, order_index, created_at), enrollments (id, user_id, course_id, completed_lessons UUID[], enrolled_at), certificates (id, user_id, course_id, issued_at). GraphQL: createCourse(title, description, priceCents), addLesson(courseId, title, contentUrl, orderIndex), enroll(courseId), markLessonComplete(enrollmentId, lessonId), issueCertificate(userId, courseId). Certificate issued only when all lessons complete.",
+    "verification": [
+      "issueCertificate fails with error if enrollment.completed_lessons count < total lessons for course",
+      "markLessonComplete appends lessonId to completed_lessons array (no duplicates)",
+      "enroll creates enrollment record and optionally processes payment (stub: always succeeds in dev)",
+      "processFeed returns courses from followed instructors sorted by created_at DESC",
+      "addLesson enforces unique order_index per course (unique constraint or error)"
+    ]
+  },
+  {
+    "id": "MK-010",
+    "component": "mini-kernel / health",
+    "task": "Implement health mini-kernel. Tables: activity_entries (id, user_id, type TEXT, value JSONB, recorded_at), medical_records (id, user_id, record_type, encrypted_content BYTEA, created_at). ALL medical_records.encrypted_content stored client-side encrypted \u2014 kernel stores only ciphertext. GraphQL: logActivity(type, value), upsertMedicalRecord(recordType, encryptedContent), getMyActivities(from, to), getMyMedicalRecords. processFeed returns ONLY the calling user's own data (no cross-user feed). No monetization.",
+    "verification": [
+      "getMyMedicalRecords only returns records where user_id = ctx.userId (never cross-user leak)",
+      "medical_records.encrypted_content stored as BYTEA verbatim with no server-side processing",
+      "processFeed(userIds) returns empty array regardless of input (health data is private)",
+      "logActivity accepts value as arbitrary JSONB (steps:10000, heartRate:75, etc.)",
+      "GET /capabilities shows category='health' and monetization.allowedMethods=['none']"
+    ]
+  },
+  {
+    "id": "MK-011",
+    "component": "mini-kernel / finance",
+    "task": "Implement finance mini-kernel. Tables: portfolios (id, user_id, name, created_at), holdings (id, portfolio_id, symbol TEXT, quantity FLOAT, avg_cost_usd FLOAT, updated_at), watchlists (id, user_id, symbols TEXT[]). GraphQL: createPortfolio(name), addHolding(portfolioId, symbol, quantity, avgCost), updateHolding(holdingId, quantity, avgCost), getPortfolio(portfolioId), addToWatchlist(symbols). processFeed returns public market commentary posts (separate table: finance_posts by followed users). No live price data \u2014 price lookup is a stub returning null (real impl uses external API key).",
+    "verification": [
+      "getPortfolio only accessible to portfolio owner (user_id check)",
+      "addHolding to portfolio owned by different user returns authorization error",
+      "addToWatchlist merges (deduplicates) symbols into existing watchlist.symbols array",
+      "processFeed returns finance_posts by followed authors, not portfolio data",
+      "Finance mini-kernel manifest shows no oauthScopesNeeded"
+    ]
+  },
+  {
+    "id": "MK-012",
+    "component": "mini-kernel / travel",
+    "task": "Implement travel mini-kernel. Tables: trips (id, user_id, title, destination, start_date, end_date, created_at), itinerary_items (id, trip_id, title, location TEXT, lat FLOAT, lng FLOAT, scheduled_at, duration_minutes), meetup_events (id, organizer_id, title, location TEXT, lat FLOAT, lng FLOAT, starts_at, attendee_ids UUID[]). GraphQL: createTrip(title, destination, startDate, endDate), addItineraryItem(tripId, title, location, lat, lng, scheduledAt, durationMinutes), createMeetup(title, location, lat, lng, startsAt), rsvpMeetup(meetupId). processFeed returns meetup_events and trips from followed users.",
+    "verification": [
+      "createTrip validates startDate < endDate",
+      "rsvpMeetup appends userId to attendee_ids (idempotent)",
+      "addItineraryItem validates lat between -90/90 and lng between -180/180",
+      "processFeed returns both trips and meetups merged, sorted by created_at DESC",
+      "lat/lng stored as FLOAT (not TEXT) in database"
+    ]
+  },
+  {
+    "id": "MK-013",
+    "component": "mini-kernel / food",
+    "task": "Implement food mini-kernel. Tables: recipes (id, author_id, title, ingredients JSONB, instructions TEXT[], prep_time_minutes INT, cook_time_minutes INT, dietary_tags TEXT[], likes, created_at), meal_plans (id, user_id, week_start DATE, plan JSONB), restaurant_reviews (id, author_id, restaurant_name, rating INT CHECK(1-5), body TEXT, created_at). GraphQL: createRecipe(title, ingredients, instructions, prepTime, cookTime, dietaryTags), likeRecipe(recipeId), createMealPlan(weekStart, plan), reviewRestaurant(restaurantName, rating, body). processFeed returns recipes and reviews from followed authors.",
+    "verification": [
+      "createRecipe stores ingredients as JSONB array [{name, amount, unit}]",
+      "reviewRestaurant rejects rating outside 1-5 range",
+      "likeRecipe increments likes counter and is idempotent per user",
+      "createMealPlan with weekStart=Monday stores week correctly (validate is Monday or reject)",
+      "processFeed merges recipes and reviews, sorted by created_at DESC"
+    ]
+  },
+  {
+    "id": "MK-014",
+    "component": "mini-kernel / art",
+    "task": "Implement art mini-kernel. Tables: artworks (id, author_id, title, storage_url, medium TEXT, tags TEXT[], likes, created_at), generative_prompts (id, author_id, prompt TEXT, model TEXT, output_url, created_at), nft_metadata (id, artwork_id, token_id TEXT, contract_address TEXT, chain TEXT, minted_at). GraphQL: uploadArtwork(title, storageUrl, medium, tags), mintNFT(artworkId, tokenId, contractAddress, chain), likeArtwork(artworkId), createGenerativePrompt(prompt, model, outputUrl). processFeed returns artworks and prompts from followed users sorted by created_at DESC.",
+    "verification": [
+      "mintNFT requires artwork.author_id = ctx.userId (can't mint others' work)",
+      "nft_metadata unique constraint on (artwork_id) \u2014 one mint per artwork",
+      "likeArtwork idempotent per user",
+      "processFeed returns items with sourceKernel='art' field populated",
+      "chain field accepts: 'ethereum', 'polygon', 'solana' \u2014 reject others"
+    ]
+  },
+  {
+    "id": "MK-015",
+    "component": "mini-kernel / writing",
+    "task": "Implement writing mini-kernel. Tables: articles (id, author_id, title, body_markdown TEXT, series_id UUID NULLABLE, published_at TIMESTAMPTZ NULLABLE, created_at), series (id, author_id, title, description), newsletter_issues (id, author_id, subject, body_markdown, sent_at NULLABLE, subscriber_count INT DEFAULT 0), newsletter_subscriptions (id, subscriber_id, author_id, created_at). GraphQL: createArticle(title, bodyMarkdown, seriesId), publishArticle(articleId), createSeries(title, description), subscribeNewsletter(authorId), sendNewsletterIssue(subject, bodyMarkdown). processFeed returns published articles from followed authors.",
+    "verification": [
+      "publishArticle sets published_at=NOW(); unpublished articles excluded from processFeed",
+      "subscribeNewsletter is idempotent (ON CONFLICT DO NOTHING)",
+      "sendNewsletterIssue sets sent_at=NOW() and updates subscriber_count from actual subscription count",
+      "processFeed returns only articles WHERE published_at IS NOT NULL",
+      "articles.body_markdown stored as raw markdown (no HTML conversion in kernel)"
+    ]
+  },
+  {
+    "id": "MK-016",
+    "component": "mini-kernel / ecommerce",
+    "task": "Implement ecommerce mini-kernel. Tables: products (id, seller_id, title, description, price_cents INT, stock_count INT, is_digital BOOL, storage_url NULLABLE, images TEXT[], created_at), orders (id, buyer_id, product_id, quantity INT, total_cents INT, status TEXT DEFAULT 'pending', created_at), product_reviews (id, reviewer_id, product_id, rating INT, body TEXT, created_at). GraphQL: listProduct(title, description, priceCents, stockCount, isDigital, storageUrl, images), placeOrder(productId, quantity), updateOrderStatus(orderId, status), reviewProduct(productId, rating, body). processFeed returns products from followed sellers sorted by created_at DESC.",
+    "verification": [
+      "placeOrder decrements products.stock_count atomically (use FOR UPDATE row lock)",
+      "placeOrder fails if stock_count < requested quantity",
+      "total_cents = priceCents * quantity stored at order creation time (not recalculated)",
+      "reviewProduct validates buyer has a completed order for that product",
+      "updateOrderStatus validates status in ('pending','confirmed','shipped','delivered','cancelled')"
+    ]
+  },
+  {
+    "id": "MK-017",
+    "component": "mini-kernel / news",
+    "task": "Implement news mini-kernel. Tables: news_articles (id, author_id, title, url TEXT, summary TEXT, source_reputation FLOAT DEFAULT 0.5, published_at, created_at), claims (id, article_id, claim_text TEXT, submitted_by UUID, created_at), fact_check_verdicts (id, claim_id, verdict TEXT CHECK IN ('true','false','misleading','unverified'), evidence TEXT, checker_id UUID, created_at). GraphQL: submitArticle(title, url, summary), submitClaim(articleId, claimText), submitVerdict(claimId, verdict, evidence), getArticleWithFactChecks(articleId). processFeed returns articles sorted by source_reputation DESC then published_at DESC.",
+    "verification": [
+      "submitVerdict rejects verdict not in ('true','false','misleading','unverified')",
+      "getArticleWithFactChecks returns article joined with all claims and their verdicts",
+      "processFeed orders by source_reputation DESC first, then published_at DESC",
+      "submitArticle with duplicate url returns existing article (ON CONFLICT DO NOTHING or upsert)",
+      "source_reputation updateable via separate mutation updateSourceReputation(articleId, score) where score FLOAT 0-1"
+    ]
+  },
+  {
+    "id": "MK-018",
+    "component": "mini-kernel / events-calendar",
+    "task": "Implement events-calendar mini-kernel. Tables: events (id, organizer_id, title, description, location TEXT, lat FLOAT, lng FLOAT, starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ, is_virtual BOOL, ticket_types JSONB DEFAULT '[]', attendee_ids UUID[], created_at), event_tickets (id, event_id, buyer_id, ticket_type TEXT, amount_cents INT, purchased_at). GraphQL: createEvent(title, description, location, lat, lng, startsAt, endsAt, isVirtual, ticketTypes), rsvpFree(eventId), purchaseTicket(eventId, ticketType), getEventsNearMe(lat, lng, radiusKm). processFeed returns upcoming events from followed organizers.",
+    "verification": [
+      "getEventsNearMe uses haversine distance formula (or ST_DWithin if PostGIS available) to filter by radius",
+      "purchaseTicket validates ticketType exists in event.ticket_types JSONB",
+      "processFeed returns only events WHERE starts_at > NOW()",
+      "rsvpFree appends userId to attendee_ids (idempotent, rejects if event has paid tickets only)",
+      "createEvent validates ends_at > starts_at"
+    ]
+  },
+  {
+    "id": "MK-019",
+    "component": "mini-kernel / environment",
+    "task": "Implement environment mini-kernel. Tables: projects (id, owner_id, title, description, target_metric TEXT, target_value FLOAT, current_value FLOAT DEFAULT 0, created_at), impact_metrics (id, project_id, metric_type TEXT, value FLOAT, recorded_at, evidence_url TEXT NULLABLE), donations (id, donor_id, project_id, amount_cents INT, currency TEXT DEFAULT 'USD', donated_at). GraphQL: createProject(title, description, targetMetric, targetValue), logImpact(projectId, metricType, value, evidenceUrl), donate(projectId, amountCents), getProjectLeaderboard(limit). processFeed returns project updates and impact_metrics from followed project owners.",
+    "verification": [
+      "logImpact increments projects.current_value by the logged value amount",
+      "donate inserts into donations with 0% fee (amount_cents stored as-is)",
+      "getProjectLeaderboard returns projects sorted by current_value/target_value ratio DESC",
+      "processFeed returns impact_metrics and project updates interleaved by recorded_at DESC",
+      "donations table has no PII beyond donor_id \u2014 no payment card data stored"
+    ]
+  },
+  {
+    "id": "MK-020",
+    "component": "mini-kernel / tech-opensource",
+    "task": "Implement tech-opensource mini-kernel. Tables: repositories (id, owner_id, title, external_url TEXT, description, stars INT DEFAULT 0, created_at), issues (id, repo_id, author_id, title, body TEXT, status TEXT DEFAULT 'open', created_at), pull_requests (id, repo_id, author_id, title, body TEXT, status TEXT DEFAULT 'open', diff_url TEXT NULLABLE, created_at), code_reviews (id, pr_id, reviewer_id, body TEXT, verdict TEXT CHECK IN ('approve','request_changes','comment'), created_at). GraphQL: addRepo(title, externalUrl, description), openIssue(repoId, title, body), openPR(repoId, title, body, diffUrl), reviewPR(prId, body, verdict), starRepo(repoId). processFeed returns repos, issues, and PRs from followed users.",
+    "verification": [
+      "starRepo increments stars counter idempotently per user (store user_stars join table)",
+      "reviewPR rejects verdict not in ('approve','request_changes','comment')",
+      "openIssue on non-existent repoId returns 'repository not found' error",
+      "processFeed merges repos, issues, PRs sorted by created_at DESC with sourceKernel='tech'",
+      "GitHub OAuth scope 'read:user' present in manifest oauthScopesNeeded"
+    ]
+  },
+  {
+    "id": "MK-021",
+    "component": "mini-kernel / sports",
+    "task": "Implement sports mini-kernel. Tables: sports (id, name, league), games (id, sport_id, home_team TEXT, away_team TEXT, home_score INT, away_score INT, played_at, status TEXT DEFAULT 'scheduled'), fantasy_teams (id, owner_id, name, sport_id, player_ids TEXT[]), player_stats (id, player_name TEXT, sport_id, game_id, stats JSONB, recorded_at). GraphQL: recordGame(sportId, homeTeam, awayTeam, homeScore, awayScore, playedAt), createFantasyTeam(name, sportId, playerIds), updateFantasyTeam(teamId, playerIds), getLeaderboard(sportId), logPlayerStats(playerName, sportId, gameId, stats). processFeed returns games and fantasy team updates from followed users.",
+    "verification": [
+      "recordGame with homeScore/awayScore sets status='completed'",
+      "createFantasyTeam stores playerIds as TEXT[] (player names, not UUIDs)",
+      "getLeaderboard returns fantasy_teams sorted by calculated points (sum of player_stats for team's playerIds)",
+      "processFeed returns game results and fantasy_team activity from followed users",
+      "logPlayerStats stores stats as JSONB (points:20, assists:5, rebounds:8 etc.)"
+    ]
+  },
+  {
+    "id": "MK-022",
+    "component": "mini-kernel / parenting",
+    "task": "Implement parenting mini-kernel. Tables: child_profiles (id, parent_id, nickname TEXT, birth_date DATE, created_at), milestones (id, child_id, title TEXT, description TEXT, milestone_date DATE, photo_url TEXT NULLABLE, created_at), playdate_events (id, organizer_id, title TEXT, location TEXT, starts_at TIMESTAMPTZ, child_age_min_months INT, child_age_max_months INT, attendee_ids UUID[], created_at). GraphQL: createChildProfile(nickname, birthDate), logMilestone(childId, title, description, milestoneDate, photoUrl), createPlaydate(title, location, startsAt, childAgeMinMonths, childAgeMaxMonths), rsvpPlaydate(playdateId). processFeed returns milestones and playdates from followed parents.",
+    "verification": [
+      "createChildProfile stores birth_date as DATE (not TIMESTAMP) for privacy",
+      "logMilestone validates childId.parent_id = ctx.userId (can't log others' children)",
+      "createPlaydate validates childAgeMaxMonths > childAgeMinMonths",
+      "rsvpPlaydate is idempotent and appends userId to attendee_ids",
+      "processFeed excludes child_profiles personal data \u2014 returns only milestones and playdates"
+    ]
+  },
+  {
+    "id": "MK-023",
+    "component": "mini-kernel / mental-health",
+    "task": "Implement mental-health mini-kernel. Tables: support_messages (id, session_token TEXT NOT NULL, topic TEXT, body TEXT, created_at) \u2014 NO persistent user_id stored. support_resources (id, title TEXT, url TEXT, topic TEXT, country TEXT DEFAULT 'global'). Anonymous-first: no auth required, session_token generated client-side UUID. GraphQL: postMessage(sessionToken, topic, body), getMessages(sessionToken, topic), getResources(topic, country). processFeed returns support_resources only (no user content). No monetization. HIPAA-considerations documented.",
+    "verification": [
+      "postMessage stores session_token as plain TEXT \u2014 no lookup against users table",
+      "getMessages returns only messages WHERE session_token = input (never cross-session)",
+      "No x-colossus-user-id header required or used in any resolver",
+      "getResources filters by topic and country (country='global' resources always included)",
+      "processFeed returns support_resources regardless of userIds input (it's a public resource feed)",
+      "No refresh_tokens, no OAuth, no external_identities references anywhere in this kernel"
+    ]
+  },
+  {
+    "id": "MK-BATCH-SCAFFOLD",
+    "component": "mini-kernels / all 25 (Dockerfile + package.json)",
+    "task": "Run the generate-kernels.sh script (provided in repo root) to stamp out Dockerfile + package.json for the 9 kernels that were skipped during initial generation (photo-sharing, messaging, video, music, live-dj, cad-collaboration, robotics, gaming, education, health, finance, travel, food, art, writing, ecommerce, news, events-calendar, environment, tech-opensource, sports, parenting, mental-health). Verify each has a working Docker build before implementing business logic (MK-001 through MK-023).",
+    "verification": [
+      "docker build ./mini-kernels/<id> returns exit code 0 for all 25 kernels",
+      "docker run colossus/mk-<id>:local curl localhost:5000/health returns {status:'ok'} for all 25",
+      "ls mini-kernels/*/package.json | wc -l returns 25",
+      "ls mini-kernels/*/Dockerfile | wc -l returns 25"
+    ]
+  },
+  {
+    "id": "DB-001",
+    "component": "main-kernel / migrations",
+    "task": "Write migration 002_mini_kernel_tables.sql creating the per-mini-kernel item tables for all 25 kernels (or implement per-kernel isolated DB schemas). Tables needed: professional_items, personal_social_items, photo_sharing_items, messages, message_groups, video_items, channels, tracks, albums, stream_events, live_sessions, session_tips, cad_files, cad_revisions, cad_annotations, robot_models, simulation_logs, sensor_data, games_items, matches, tournament_teams, clips, courses, lessons, enrollments, certificates, activity_entries, medical_records, portfolios, holdings, watchlists, finance_posts, trips, itinerary_items, meetup_events, recipes, meal_plans, restaurant_reviews, artworks, generative_prompts, nft_metadata, articles, series, newsletter_issues, newsletter_subscriptions, products, orders, product_reviews, news_articles, claims, fact_check_verdicts, events_cal, event_tickets, projects, impact_metrics, donations, repositories, issues, pull_requests, code_reviews, user_stars, sports_sports, sport_games, fantasy_teams, player_stats, child_profiles, milestones, playdate_events, support_messages, support_resources.",
+    "verification": [
+      "psql -f migrations/002_mini_kernel_tables.sql returns no errors",
+      "\\dt in psql lists all expected tables",
+      "Migration is idempotent (run twice with no error \u2014 use IF NOT EXISTS on all CREATE TABLE)",
+      "All UUID primary keys use gen_random_uuid() default",
+      "All created_at columns have DEFAULT NOW() and TIMESTAMPTZ type"
+    ]
+  },
+  {
+    "id": "INFRA-001",
+    "component": "infrastructure / K8s network policies",
+    "task": "Create infrastructure/helm/colossus/templates/network-policies.yaml enforcing zero-trust: (1) mini-kernels can only talk to NATS and PostgreSQL, not to each other directly; (2) gateway can reach all services; (3) identity can reach vault and postgres; (4) external ingress only to gateway:4000. Use Kubernetes NetworkPolicy resources with podSelector + namespaceSelector.",
+    "verification": [
+      "kubectl apply -f network-policies.yaml returns no errors",
+      "kubectl exec into mk-professional pod, attempt curl to mk-video:5000 \u2014 connection refused",
+      "kubectl exec into gateway pod, curl to identity:4001/health \u2014 succeeds",
+      "kubectl exec into mk-professional, curl to nats:4222 \u2014 succeeds",
+      "External curl to gateway:4000/health from outside cluster \u2014 succeeds via ingress"
+    ]
+  },
+  {
+    "id": "INFRA-002",
+    "component": "infrastructure / mTLS (Istio)",
+    "task": "Create infrastructure/helm/colossus/templates/istio-config.yaml enabling STRICT mTLS for all intra-kernel communication via Istio PeerAuthentication and DestinationRules. All services in the 'colossus' namespace require mTLS mode=STRICT. Alternatively provide Linkerd install instructions if Istio not preferred.",
+    "verification": [
+      "kubectl apply -f istio-config.yaml in a cluster with Istio returns no errors",
+      "istioctl analyze -n colossus shows no warnings",
+      "PeerAuthentication mode=STRICT applied to colossus namespace",
+      "HTTP call between two services without sidecar injection fails (connection reset)",
+      "Sidecar-injected service call succeeds with mTLS (check via kiali or istioctl)"
+    ]
+  },
+  {
+    "id": "INFRA-003",
+    "component": "infrastructure / Vault secret seeding",
+    "task": "Create infrastructure/scripts/vault-init.sh that: (1) enables the transit secrets engine; (2) creates the 'oauth-tokens' encryption key (AES-256-GCM); (3) creates a policy 'colossus-kernel' with encrypt/decrypt on transit/oauth-tokens; (4) creates a Kubernetes auth role mapping the colossus ServiceAccount to that policy; (5) seeds the KV store with placeholder OAuth app credentials (all empty strings, documented). Script must be idempotent.",
+    "verification": [
+      "bash vault-init.sh runs to completion with VAULT_ADDR and VAULT_TOKEN set",
+      "vault secrets list includes 'transit/' and 'kv/'",
+      "vault write transit/encrypt/oauth-tokens plaintext=$(base64 <<<'test') succeeds",
+      "vault policy read colossus-kernel shows encrypt and decrypt capabilities on transit/oauth-tokens",
+      "Running vault-init.sh a second time produces no errors (idempotent)"
+    ]
+  },
+  {
+    "id": "INFRA-004",
+    "component": "infrastructure / Observability stack",
+    "task": "Create infrastructure/helm/colossus/templates/observability.yaml deploying: Prometheus ServiceMonitor for each main-kernel service (scrape /metrics on port 9090), Grafana dashboard ConfigMap with pre-built dashboard JSON for feed latency, mini-kernel health, event bus lag, active users. Add Loki and Jaeger as optional subcharts in Chart.yaml. Document how to access dashboards post-deploy.",
+    "verification": [
+      "kubectl apply -f observability.yaml deploys ServiceMonitors without errors",
+      "Prometheus /api/v1/targets shows all colossus services as UP",
+      "Grafana dashboard imported via ConfigMap renders 'Feed Latency P99' panel",
+      "curl gateway:4000/metrics returns prometheus-formatted metrics (or 404 if metrics on separate port)",
+      "Jaeger UI shows traces from gateway to identity when POST /auth/* called"
+    ]
+  },
+  {
+    "id": "INFRA-005",
+    "component": "infrastructure / CI/CD pipeline",
+    "task": "Create .github/workflows/ci.yml that: (1) on PR: runs tsc --noEmit + jest for main-kernel and all mini-kernels; (2) on merge to main: builds Docker images for all 25 mini-kernels + main-kernel (5 service targets), pushes to GitHub Container Registry, runs helm upgrade on staging cluster; (3) uses matrix strategy for parallel mini-kernel builds. Add CODEOWNERS requiring 2 core maintainer reviews for any change to main-kernel/src/gateway, main-kernel/src/identity, or shared/proto.",
+    "verification": [
+      ".github/workflows/ci.yml passes yamllint",
+      "GitHub Actions 'Build' job matrix shows 25+ parallel build entries",
+      "CODEOWNERS file exists with entries for main-kernel/src/gateway and shared/proto",
+      "On PR: tsc --noEmit exits 0 (or reports only expected type errors from stub implementations)",
+      "Docker image tagged with git SHA pushed to ghcr.io/colossus/mk-<id>:<sha> on merge to main"
+    ]
+  },
+  {
+    "id": "SECURITY-001",
+    "component": "main-kernel / identity \u2014 rate limiting",
+    "task": "Add rate limiting to auth endpoints in identity service: /auth/*/callback limited to 10 req/min per IP, /auth/refresh limited to 30 req/min per user_id, /v1/me/export limited to 1 req/hour per user. Implement using Redis via ioredis with sliding window counter. Return 429 with Retry-After header on breach.",
+    "verification": [
+      "11 rapid requests to /auth/github/callback from same IP returns 429 on 11th",
+      "429 response includes Retry-After header with seconds until reset",
+      "Rate limit keys stored in Redis with TTL (verify with redis-cli TTL colossus:rl:*)",
+      "Different IPs have independent rate limit buckets",
+      "/v1/me/export 2nd call within 1 hour returns 429"
+    ]
+  },
+  {
+    "id": "SECURITY-002",
+    "component": "main-kernel / feed \u2014 custom algorithm sandboxing",
+    "task": "Replace vm2 with isolated-vm or quickjs-emscripten for user custom algorithm sandbox. vm2 has known escape vulnerabilities. Sandbox must: (1) timeout at 500ms; (2) have no access to Node built-ins (no require, no process, no fetch); (3) receive only the items array as input; (4) return only an array (validate output type before use). Add WASM runtime path using WebAssembly.instantiate with memory limits.",
+    "verification": [
+      "Custom algorithm attempting require('fs') throws ReferenceError inside sandbox",
+      "Algorithm running infinite loop is killed after 500ms and returns original items unsorted",
+      "Algorithm attempting process.exit() throws ReferenceError",
+      "Valid sorting algorithm (items.sort by likes) executes and returns correctly sorted array",
+      "WASM algorithm path: provide a test .wasm sort module and verify it executes within 500ms limit"
+    ]
+  },
+  {
+    "id": "SECURITY-003",
+    "component": "main-kernel / identity \u2014 DID implementation",
+    "task": "Implement did:key native identity in /auth/native: (1) validate inbound publicKey is a valid Ed25519 or secp256k1 public key in multibase format; (2) validate signature of a server-issued challenge (to prevent replay); (3) derive colossus_id as did:key:<multibase-encoded-pubkey>; (4) issue JWT. Add GET /auth/native/challenge endpoint that returns a one-time nonce (stored in Redis, TTL 5min).",
+    "verification": [
+      "GET /auth/native/challenge returns {nonce: '<uuid>', expiresAt: '<ISO8601>'}",
+      "POST /auth/native with valid Ed25519 signature of nonce returns JWT",
+      "POST /auth/native with invalid signature returns 401",
+      "POST /auth/native with expired nonce (>5min) returns 401 'challenge expired'",
+      "Nonce consumed after first use \u2014 second POST with same nonce returns 401 'nonce already used'",
+      "colossus_id in DB starts with 'did:key:'"
+    ]
+  },
+  {
+    "id": "FEED-001",
+    "component": "main-kernel / feed \u2014 Elasticsearch indexing",
+    "task": "Create Elasticsearch index templates for each mini-kernel (index pattern: kernel-<id>-*). Mapping: id (keyword), author_id (keyword), created_at (date), tags (keyword[]), body_text (text, analyzed), likes (integer), source_kernel (keyword). Implement full-text search endpoint GET /v1/search?q=<query>&kernels=<comma-list>&from=<ISO>&to=<ISO>. Feed service indexes content_items on NATS 'content.created' events.",
+    "verification": [
+      "PUT /_index_template/colossus-kernels returns acknowledged:true in Elasticsearch",
+      "GET /v1/search?q=robotics returns items from kernel-robotics-* index",
+      "GET /v1/search?kernels=music,art&q=experimental returns only music and art results",
+      "NATS event 'content.created' triggers ES index call within 2s",
+      "Date range filter ?from=2024-01-01&to=2024-12-31 correctly filters results"
+    ]
+  },
+  {
+    "id": "FEED-002",
+    "component": "main-kernel / feed \u2014 algorithm RFC process",
+    "task": "Implement NATS-based RFC voting flow for new mini-kernel categories: when Orchestrator receives a kernel with unknown category, publish 'kernel.rfc.opened' to NATS with 7-day deadline. Create rfc_votes table (id, kernel_id, voter_id, vote TEXT CHECK IN ('approve','reject'), created_at). GraphQL mutation voteOnRFC(kernelId, vote). Cron job checks expired RFCs every hour: if approve votes >= 75% of total, auto-approve and spawn; else reject.",
+    "verification": [
+      "Spawning kernel with category='pizza-delivery' triggers NATS 'kernel.rfc.opened' event",
+      "voteOnRFC mutation is idempotent per voter per kernelId (one vote per user)",
+      "Cron job runs every hour (verify via logs or pg_cron if using DB scheduler)",
+      "RFC with 3 approve / 1 reject (75%) triggers spawn after deadline",
+      "RFC with 2 approve / 2 reject (50%) remains rejected after deadline",
+      "mini_kernel_registry.status transitions: pending_rfc \u2192 active (on approve) or rejected (on reject)"
+    ]
+  },
+  {
+    "id": "CLIENT-001",
+    "component": "web client / PWA shell",
+    "task": "Create client/ directory with a React + Vite PWA. App shell: sidebar nav listing all installed mini-kernels (fetched from GET /v1/kernels); unified feed view rendering FeedItems from GraphQL query { feed(limit:20) { items { id sourceKernel payload createdAt } } }; kernel-specific item renderer that switches on sourceKernel to render the right component (lazy-loaded per kernel). Auth flow: redirect to /auth/<provider>, receive JWT via URL param, store in memory (not localStorage). Offline-first: service worker caches last feed page.",
+    "verification": [
+      "npm run build in client/ produces dist/ with no TypeScript errors",
+      "Lighthouse PWA audit score >= 90",
+      "Feed renders items from at least 2 mini-kernels in single scrollable view",
+      "JWT stored in memory (not localStorage or sessionStorage) \u2014 verify in DevTools",
+      "Service worker intercepts GET /graphql and returns cached feed when offline",
+      "Sidebar shows all active mini-kernels returned by GET localhost:4002/kernels"
+    ]
+  },
+  {
+    "id": "CLIENT-002",
+    "component": "web client / kernel-specific UI modules",
+    "task": "Implement 5 Phase 0 kernel UI components as lazy-loaded React modules: ProfessionalCard (job posting card with title, company, skills badges), SocialPost (body text, image grid, like button), PhotoGrid (masonry layout, tap to expand), MessageThread (chat bubbles, end-to-end encrypted indicator), VideoPlayer (HLS.js player, like/view counter). Each component receives payload: Record<string,unknown> from feed item and extracts its fields.",
+    "verification": [
+      "ProfessionalCard renders job title and skills badges from payload.title and payload.skills[]",
+      "VideoPlayer loads HLS stream from payload.hls_url using hls.js",
+      "MessageThread shows \ud83d\udd12 indicator next to all messages (E2E encrypted)",
+      "PhotoGrid uses CSS columns or masonry library \u2014 no overlapping images",
+      "SocialPost like button calls GraphQL mutation likePost and updates count optimistically",
+      "All 5 components are code-split (verify separate chunk in dist/assets/)"
+    ]
+  },
+  {
+    "id": "GOVERNANCE-001",
+    "component": "docs / RFC process and locked core",
+    "task": "Create docs/GOVERNANCE.md documenting: (1) Locked Core definition (list of immutable files post-v1.0 with exact paths); (2) RFC template (copy to .github/ISSUE_TEMPLATE/rfc.md); (3) voting rules (75% approval for core changes, lazy consensus for mini-kernels after 7 days); (4) CODEOWNERS enforcement; (5) fork compatibility requirements (must implement /kernels/register and /kernels/:id/heartbeat). Create docs/CONTRIBUTING.md with dev setup steps (docker-compose up, run migrations, run tests).",
+    "verification": [
+      "docs/GOVERNANCE.md exists and lists at minimum: main-kernel/src/gateway/index.ts, main-kernel/src/identity/index.ts, shared/proto/kernel.proto as locked-core files",
+      ".github/ISSUE_TEMPLATE/rfc.md exists with fields: Proposal, Motivation, Specification, Drawbacks, Alternatives",
+      "docs/CONTRIBUTING.md contains working docker-compose up command",
+      "CODEOWNERS file maps main-kernel/src/ to at least 2 GitHub usernames",
+      "docs/GOVERNANCE.md states fork compatibility requirement: must implement gRPC MiniKernel service from shared/proto/kernel.proto"
+    ]
+  },
+  {
+    "id": "GOVERNANCE-002",
+    "component": "docs / NEXTAURA_ENV alignment",
+    "task": "Create NEXTAURA_ENV.md at repo root documenting Colossus-specific dev session context: directory layout, which services to start for which task, how to run a single mini-kernel locally against the main kernel, how to add a new mini-kernel (6-step checklist), current phase (Phase 0), and the generate-kernels.sh invocation for stamping new kernels. This prevents context drift across dev sessions.",
+    "verification": [
+      "NEXTAURA_ENV.md exists at repo root",
+      "Contains 6-step new mini-kernel checklist matching MiniKernelBase abstract methods",
+      "Contains docker-compose commands to start only gateway+identity+discovery (minimal stack)",
+      "Documents KERNEL_ID env var and DISCOVERY_URL for local mini-kernel registration",
+      "Specifies current roadmap phase and next milestone"
+    ]
+  }
+]

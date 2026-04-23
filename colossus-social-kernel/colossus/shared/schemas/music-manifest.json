@@ -1,0 +1,37 @@
+{
+  "name": "Music Streaming",
+  "version": "1.0.0",
+  "category": "music",
+  "kernelId": "music",
+  "dockerImage": "colossus/mk-music:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [
+    "spotify:user-read-private",
+    "spotify:user-read-email"
+  ],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "music-widget",
+    "mobileComponent": "MusicScreen",
+    "defaultRoute": "/music"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "micro_royalties",
+      "tipping"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "Travel Planning",
+  "version": "1.0.0",
+  "category": "travel",
+  "kernelId": "travel",
+  "dockerImage": "colossus/mk-travel:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "travel-widget",
+    "mobileComponent": "TravelScreen",
+    "defaultRoute": "/travel"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "affiliate_bookings",
+      "paid_listings"
+    ]
+  }
+}
