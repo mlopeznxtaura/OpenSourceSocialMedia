@@ -1,0 +1,33 @@
+{
+  "name": "E-Commerce Marketplace",
+  "version": "1.0.0",
+  "category": "ecommerce",
+  "kernelId": "ecommerce",
+  "dockerImage": "colossus/mk-ecommerce:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "ecommerce-widget",
+    "mobileComponent": "EcommerceScreen",
+    "defaultRoute": "/ecommerce"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "transaction_fee"
+    ]
+  }
+}

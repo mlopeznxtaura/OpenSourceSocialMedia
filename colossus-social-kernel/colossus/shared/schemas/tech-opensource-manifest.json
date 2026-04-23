@@ -1,0 +1,36 @@
+{
+  "name": "Tech Open Source",
+  "version": "1.0.0",
+  "category": "tech",
+  "kernelId": "tech-opensource",
+  "dockerImage": "colossus/mk-tech-opensource:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [
+    "github:read:user",
+    "github:user:email"
+  ],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "tech-opensource-widget",
+    "mobileComponent": "TechOpensourceScreen",
+    "defaultRoute": "/tech-opensource"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "sponsor_maintainers"
+    ]
+  }
+}

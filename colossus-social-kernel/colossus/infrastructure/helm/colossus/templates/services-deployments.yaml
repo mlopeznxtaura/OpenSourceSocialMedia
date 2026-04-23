@@ -1,0 +1,48 @@
+{{- $services := list "identity" "discovery" "orchestrator" "feed" }}
+{{- $ports := dict "identity" 4001 "discovery" 4002 "orchestrator" 4003 "feed" 4004 }}
+{{- range $services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: colossus-{{ . }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: colossus-{{ . }}
+    component: {{ . }}
+spec:
+  replicas: {{ index $.Values.replicaCount . | default 1 }}
+  selector:
+    matchLabels:
+      app: colossus-{{ . }}
+  template:
+    metadata:
+      labels:
+        app: colossus-{{ . }}
+    spec:
+      containers:
+        - name: {{ . }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          args: ["ts-node", "src/{{ . }}/index.ts"]
+          ports:
+            - containerPort: {{ index $ports . }}
+          envFrom:
+            - secretRef:
+                name: colossus-secrets
+          livenessProbe:
+            httpGet: { path: /health, port: {{ index $ports . }} }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ . }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  selector:
+    app: colossus-{{ . }}
+  ports:
+    - port: {{ index $ports . }}
+      targetPort: {{ index $ports . }}
+{{- end }}

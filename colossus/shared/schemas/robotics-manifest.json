@@ -1,0 +1,33 @@
+{
+  "name": "Robotics Simulation",
+  "version": "1.0.0",
+  "category": "robotics",
+  "kernelId": "robotics",
+  "dockerImage": "colossus/mk-robotics:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "robotics-widget",
+    "mobileComponent": "RoboticsScreen",
+    "defaultRoute": "/robotics"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "hardware_certification",
+      "simulation_credits"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "Photo Sharing",
+  "version": "1.0.0",
+  "category": "photo",
+  "kernelId": "photo-sharing",
+  "dockerImage": "colossus/mk-photo-sharing:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "photo-sharing-widget",
+    "mobileComponent": "PhotoSharingScreen",
+    "defaultRoute": "/photo-sharing"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "print_on_demand"
+    ]
+  }
+}

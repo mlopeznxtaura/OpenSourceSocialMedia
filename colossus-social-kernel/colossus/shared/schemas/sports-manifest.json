@@ -1,0 +1,34 @@
+{
+  "name": "Sports Fantasy",
+  "version": "1.0.0",
+  "category": "sports",
+  "kernelId": "sports",
+  "dockerImage": "colossus/mk-sports:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "sports-widget",
+    "mobileComponent": "SportsScreen",
+    "defaultRoute": "/sports"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "fantasy_contests",
+      "merchandise"
+    ]
+  }
+}

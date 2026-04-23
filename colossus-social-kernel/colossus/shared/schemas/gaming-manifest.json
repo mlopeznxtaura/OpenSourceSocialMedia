@@ -1,0 +1,34 @@
+{
+  "name": "Gaming Esports Hub",
+  "version": "1.0.0",
+  "category": "gaming",
+  "kernelId": "gaming",
+  "dockerImage": "colossus/mk-gaming:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "gaming-widget",
+    "mobileComponent": "GamingScreen",
+    "defaultRoute": "/gaming"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "skin_marketplace",
+      "ticket_sales"
+    ]
+  }
+}

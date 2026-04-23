@@ -1,0 +1,34 @@
+{
+  "name": "Education Academy",
+  "version": "1.0.0",
+  "category": "education",
+  "kernelId": "education",
+  "dockerImage": "colossus/mk-education:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "education-widget",
+    "mobileComponent": "EducationScreen",
+    "defaultRoute": "/education"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "course_fee",
+      "subscription"
+    ]
+  }
+}

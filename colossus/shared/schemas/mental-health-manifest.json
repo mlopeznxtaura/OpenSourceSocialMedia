@@ -1,0 +1,30 @@
+{
+  "name": "Mental Health Support",
+  "version": "1.0.0",
+  "category": "mental-health",
+  "kernelId": "mental-health",
+  "dockerImage": "colossus/mk-mental-health:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "mental-health-widget",
+    "mobileComponent": "MentalHealthScreen",
+    "defaultRoute": "/mental-health"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "none"
+    ]
+  }
+}

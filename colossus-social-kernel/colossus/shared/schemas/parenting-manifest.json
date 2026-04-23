@@ -1,0 +1,33 @@
+{
+  "name": "Parenting Family",
+  "version": "1.0.0",
+  "category": "parenting",
+  "kernelId": "parenting",
+  "dockerImage": "colossus/mk-parenting:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "parenting-widget",
+    "mobileComponent": "ParentingScreen",
+    "defaultRoute": "/parenting"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "affiliate_links",
+      "course_sales"
+    ]
+  }
+}

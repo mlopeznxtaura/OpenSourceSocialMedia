@@ -1,0 +1,124 @@
+version: "3.9"
+
+services:
+  # ── Infrastructure ───────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: colossus
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: colossus
+    ports: ["5432:5432"]
+    volumes: [pg_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U colossus"]
+      interval: 5s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports: ["9200:9200"]
+    volumes: [es_data:/usr/share/elasticsearch/data]
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"]
+    ports: ["4222:4222", "8222:8222"]
+
+  vault:
+    image: hashicorp/vault:1.16
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+    ports: ["8200:8200"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  # ── Main Kernel Services ─────────────────────────────────────────────────────
+  gateway:
+    build: ./main-kernel
+    target: gateway
+    ports: ["4000:4000"]
+    depends_on: [postgres, nats, vault]
+    environment:
+      SERVICE: gateway
+    env_file: .env
+
+  identity:
+    build: ./main-kernel
+    target: identity
+    ports: ["4001:4001"]
+    depends_on: [postgres, vault, redis]
+    environment:
+      SERVICE: identity
+    env_file: .env
+
+  discovery:
+    build: ./main-kernel
+    target: discovery
+    ports: ["4002:4002"]
+    depends_on: [nats, redis]
+    environment:
+      SERVICE: discovery
+    env_file: .env
+
+  orchestrator:
+    build: ./main-kernel
+    target: orchestrator
+    ports: ["4003:4003"]
+    depends_on: [nats, postgres]
+    environment:
+      SERVICE: orchestrator
+    env_file: .env
+
+  feed:
+    build: ./main-kernel
+    target: feed
+    ports: ["4004:4004"]
+    depends_on: [postgres, elasticsearch, nats, redis]
+    environment:
+      SERVICE: feed
+    env_file: .env
+
+  # ── Phase 0 Mini-Kernels (starter 5) ────────────────────────────────────────
+  mk-professional:
+    build: ./mini-kernels/professional
+    ports: ["5001:5000"]
+    depends_on: [postgres, nats]
+    env_file: .env
+    labels:
+      colossus.mini-kernel: "professional"
+
+  mk-personal-social:
+    build: ./mini-kernels/personal-social
+    ports: ["5002:5000"]
+    depends_on: [postgres, nats]
+    env_file: .env
+
+  mk-messaging:
+    build: ./mini-kernels/messaging
+    ports: ["5003:5000"]
+    depends_on: [postgres, nats, redis]
+    env_file: .env
+
+  mk-photo:
+    build: ./mini-kernels/photo-sharing
+    ports: ["5004:5000"]
+    depends_on: [postgres, nats]
+    env_file: .env
+
+  mk-video:
+    build: ./mini-kernels/video
+    ports: ["5005:5000"]
+    depends_on: [postgres, nats]
+    env_file: .env
+
+volumes:
+  pg_data:
+  es_data:

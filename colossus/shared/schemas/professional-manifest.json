@@ -1,0 +1,37 @@
+{
+  "name": "Professional Networking",
+  "version": "1.0.0",
+  "category": "careers",
+  "kernelId": "professional",
+  "dockerImage": "colossus/mk-professional:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow",
+    "content.like"
+  ],
+  "oauthScopesNeeded": [
+    "linkedin:r_fullprofile",
+    "linkedin:r_emailaddress"
+  ],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "professional-widget",
+    "mobileComponent": "ProfessionalScreen",
+    "defaultRoute": "/professional"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "job_posting_fee",
+      "premium_profile"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Health Fitness",
+  "version": "1.0.0",
+  "category": "health",
+  "kernelId": "health",
+  "dockerImage": "colossus/mk-health:latest",
+  "resources": {
+    "cpu": "250m",
+    "memory": "512Mi",
+    "minReplicas": 2,
+    "maxReplicas": 10
+  },
+  "graphqlSchema": "schema.graphql",
+  "eventSubscriptions": [
+    "user.follow"
+  ],
+  "oauthScopesNeeded": [],
+  "storageBackends": [
+    "s3",
+    "ipfs"
+  ],
+  "uiModule": {
+    "webComponent": "health-widget",
+    "mobileComponent": "HealthScreen",
+    "defaultRoute": "/health"
+  },
+  "monetization": {
+    "allowedMethods": [
+      "none"
+    ]
+  }
+}

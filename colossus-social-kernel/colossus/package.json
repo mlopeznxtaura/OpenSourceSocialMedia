@@ -1,0 +1,26 @@
+{
+  "name": "colossus-social-kernel",
+  "version": "1.0.0",
+  "description": "Open-source brandless social kernel – unified feed, modular mini-kernels, user-controlled algorithms",
+  "license": "AGPL-3.0",
+  "private": true,
+  "workspaces": [
+    "main-kernel",
+    "mini-kernels/*",
+    "shared",
+    "tools/cli"
+  ],
+  "scripts": {
+    "dev": "docker-compose up --build",
+    "deploy": "node tools/cli/src/index.js deploy",
+    "spawn": "node tools/cli/src/index.js spawn",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint '**/*.{ts,js}' --ignore-path .eslintignore"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "jest": "^29.0.0",
+    "eslint": "^8.0.0"
+  }
+}
